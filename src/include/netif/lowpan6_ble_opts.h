@@ -1,8 +1,8 @@
 /**
  * @file
- * 6LowPAN over BLE for IPv6 (RFC7668).
+ * 6LowPAN over BLE for IPv6 (RFC7668). Config file
  */
-
+ 
 /*
  * Copyright (c) 2017 Benjamin Aigner
  * Copyright (c) 2015 Inico Technologies Ltd. , Author: Ivan Delamer <delamer@inicotech.com>
@@ -35,35 +35,51 @@
  * 
  * Based on the original 6lowpan implementation of lwIP ( @see 6lowpan.c)
  */
- 
-#ifndef LWIP_HDR_RFC7668_H
-#define LWIP_HDR_RFC7668_H
 
-#include "netif/lowpan6_ble_opts.h"
+#ifndef LWIP_HDR_RFC7668_OPTS_H
+#define LWIP_HDR_RFC7668_OPTS_H
 
-#if LWIP_IPV6 && LWIP_RFC7668 /* don't build if not configured for use in lwipopts.h */
+#include "lwip/opt.h"
 
-#include "lwip/pbuf.h"
-#include "lwip/ip.h"
-#include "lwip/ip_addr.h"
-#include "lwip/netif.h"
-
-#ifdef __cplusplus
-extern "C" {
+/** LWIP_RFC7668==1: Enable the RFC7668 netif.*/
+#ifndef LWIP_RFC7668
+#define LWIP_RFC7668                          1
 #endif
 
-err_t rfc7668_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr);
-err_t rfc7668_input(struct pbuf * p, struct netif *netif, const ip6_addr_t *src);
-err_t rfc7668_if_init(struct netif *netif);
-
-
-void ble_addr_to_eui64(uint8_t *dst, uint8_t *src, uint8_t public_addr);
-void eui64_to_ble_addr(uint8_t *dst, uint8_t *src);
-
-#ifdef __cplusplus
-}
+/** LWIP_RFC7668_NUM_CONTEXTS: define the number of compression
+ * contexts.
+ * CURRENTLY NOT SUPPORTED. */
+#ifndef LWIP_RFC7668_NUM_CONTEXTS
+#define LWIP_RFC7668_NUM_CONTEXTS             10
 #endif
 
-#endif /* LWIP_IPV6 && LWIP_RFC7668 */
+/** LWIP_RFC7668_DEBUG: Enable generic debugging in rfc7668.c. */
+#ifndef LWIP_RFC7668_DEBUG
+#define LWIP_RFC7668_DEBUG                    LWIP_DBG_ON
+#endif
 
-#endif /* LWIP_HDR_RFC7668_H */
+/** LWIP_RFC7668_IP_COMPRESSED_DEBUG: enable compressed IP frame
+ * output debugging */
+#ifndef LWIP_RFC7668_IP_COMPRESSED_DEBUG
+#define LWIP_RFC7668_IP_COMPRESSED_DEBUG      LWIP_DBG_OFF
+#endif
+
+/** LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG: enable decompressed IP frame
+ * output debugging */
+#ifndef LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG
+#define LWIP_RFC7668_IP_UNCOMPRESSED_DEBUG    LWIP_DBG_OFF
+#endif
+
+/** LWIP_RFC7668_DECOMPRESSION_DEBUG: enable decompression debug output*/
+#ifndef LWIP_RFC7668_DECOMPRESSION_DEBUG
+#define LWIP_RFC7668_DECOMPRESSION_DEBUG      LWIP_DBG_OFF
+#endif
+
+/** LWIP_RFC7668_LINUX_WORKAROUND_PUBLIC_ADDRESS: 
+ * Currently, the linux kernel driver for 6lowpan sets/clears a bit in
+ * the address, depending on the BD address (either public or not).
+ * Might not be RFC7668 conform, so you may select to do that (=1) or 
+ * not (=0) */
+#define LWIP_RFC7668_LINUX_WORKAROUND_PUBLIC_ADDRESS 1
+
+#endif /* LWIP_HDR_RFC7668_OPTS_H */
