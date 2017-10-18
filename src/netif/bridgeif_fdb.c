@@ -35,15 +35,8 @@
  *
  */
 
-/**
- * @defgroup bridgeif_fdb FDB example code
- * @ingroup bridgeif
- * This file implements an example for an FDB (Forwarding DataBase)
- */
-
 #include "netif/bridgeif.h"
 #include "lwip/sys.h"
-#include "lwip/mem.h"
 #include "lwip/timeouts.h"
 #include <string.h>
 
@@ -63,9 +56,7 @@ typedef struct bridgeif_dfdb_s {
   bridgeif_dfdb_entry_t *fdb;
 } bridgeif_dfdb_t;
 
-/**
- * @ingroup bridgeif_fdb
- * A real simple and slow implementation of an auto-learning forwarding database that
+/** A real simple and slow implementation of an auto-learning forwarding database that
  * remembers known src mac addresses to know which port to send frames destined for that
  * mac address.
  *
@@ -120,10 +111,7 @@ bridgeif_fdb_update_src(void *fdb_ptr, struct eth_addr *src_addr, u8_t port_idx)
   /* not found, no free entry -> flood */
 }
 
-/** 
- * @ingroup bridgeif_fdb
- * Walk our list of auto-learnt fdb entries and return a port to forward or BR_FLOOD if unknown 
- */
+/** Walk our list of auto-learnt fdb entries and return a port to forward or BR_FLOOD if unknown */
 bridgeif_portmask_t
 bridgeif_fdb_get_dst_ports(void *fdb_ptr, struct eth_addr *dst_addr)
 {
@@ -145,10 +133,7 @@ bridgeif_fdb_get_dst_ports(void *fdb_ptr, struct eth_addr *dst_addr)
   return BR_FLOOD;
 }
 
-/**
- * @ingroup bridgeif_fdb
- * Aging implementation of our simple fdb
- */
+/** Aging implementation of our simple fdb */
 static void
 bridgeif_fdb_age_one_second(void *fdb_ptr)
 {
@@ -187,10 +172,7 @@ bridgeif_age_tmr(void *arg)
   sys_timeout(BRIDGEIF_AGE_TIMER_MS, bridgeif_age_tmr, arg);
 }
 
-/**
- * @ingroup bridgeif_fdb
- * Init our simple fdb list
- */
+/** Init our simple fdb list */
 void *
 bridgeif_fdb_init(u16_t max_fdb_entries)
 {
