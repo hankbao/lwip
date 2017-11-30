@@ -226,10 +226,10 @@ typedef int ssize_t;
 #define lwip_toupper(c)           (lwip_islower(c) ? (c) - 'a' + 'A' : c)
 #else
 #include <ctype.h>
-#define lwip_isdigit(c)           isdigit(c)
-#define lwip_isxdigit(c)          isxdigit(c)
-#define lwip_islower(c)           islower(c)
-#define lwip_isspace(c)           isspace(c)
+#define lwip_isdigit(c)           isdigit((int)c)
+#define lwip_isxdigit(c)          isxdigit((int)c)
+#define lwip_islower(c)           islower((int)c)
+#define lwip_isspace(c)           isspace((int)c)
 #define lwip_isupper(c)           isupper((unsigned char)(c))
 #define lwip_tolower(c)           tolower((unsigned char)(c))
 #define lwip_toupper(c)           toupper((unsigned char)(c))
