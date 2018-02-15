@@ -32,17 +32,12 @@
  * This file is part of the lwIP TCP/IP stack.
  *
  * Author: Simon Goldschmidt <goldsimon@gmx.de>
- */
-
-/**
- * @defgroup httpc HTTP client
- * @ingroup apps
+ *
  * @todo:
  * - persistent connections
  * - select outgoing http version
  * - optionally follow redirect
  * - check request uri for invalid characters? (e.g. encode spaces)
- * - IPv6 support
  */
 
 #include "lwip/apps/http_client.h"
@@ -52,13 +47,9 @@
 #include "lwip/debug.h"
 #include "lwip/mem.h"
 #include "lwip/altcp_tls.h"
-#include "lwip/init.h"
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
-
-#if LWIP_TCP && LWIP_CALLBACK_API
 
 /**
  * HTTPC_DEBUG: Enable debugging for HTTP client.
@@ -70,11 +61,6 @@
 /** Set this to 1 to keep server name and uri in request state */
 #ifndef HTTPC_DEBUG_REQUEST
 #define HTTPC_DEBUG_REQUEST         0
-#endif
-
-/** This string is passed in the HTTP header as "User-Agent: " */
-#ifndef HTTPC_CLIENT_AGENT
-#define HTTPC_CLIENT_AGENT "lwIP/" LWIP_VERSION_STRING " (http://savannah.nongnu.org/projects/lwip)"
 #endif
 
 /* the various debug levels for this file */
@@ -91,38 +77,29 @@
 
 /* GET request basic */
 #define HTTPC_REQ_11 "GET %s HTTP/1.1\r\n" /* URI */\
-    "User-Agent: %s\r\n" /* User-Agent */ \
+    "User-Agent: Wget/1.15 (linux-gnu)\r\n" \
     "Accept: */*\r\n" \
     "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
     "\r\n"
-#define HTTPC_REQ_11_FORMAT(uri) HTTPC_REQ_11, uri, HTTPC_CLIENT_AGENT
+#define HTTPC_REQ_11_FORMAT(uri) HTTPC_REQ_11, uri
 
 /* GET request with host */
 #define HTTPC_REQ_11_HOST "GET %s HTTP/1.1\r\n" /* URI */\
-    "User-Agent: %s\r\n" /* User-Agent */ \
+    "User-Agent: Wget/1.15 (linux-gnu)\r\n" \
     "Accept: */*\r\n" \
     "Host: %s\r\n" /* server name */ \
     "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
     "\r\n"
-#define HTTPC_REQ_11_HOST_FORMAT(uri, srv_name) HTTPC_REQ_11_HOST, uri, HTTPC_CLIENT_AGENT, srv_name
+#define HTTPC_REQ_11_HOST_FORMAT(uri, srv_name) HTTPC_REQ_11_HOST, uri, srv_name
 
-/* GET request with proxy */
-#define HTTPC_REQ_11_PROXY "GET http://%s%s HTTP/1.1\r\n" /* HOST, URI */\
-    "User-Agent: %s\r\n" /* User-Agent */ \
+/* GET request with proxy: @todo */
+#define HTTPC_REQ_11_PROXY "GET %s%s HTTP/1.1\r\n" /* PROXY, URI */\
+    "User-Agent: Wget/1.15 (linux-gnu)\r\n" \
     "Accept: */*\r\n" \
     "Host: %s\r\n" /* server name */ \
     "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
     "\r\n"
-#define HTTPC_REQ_11_PROXY_FORMAT(host, uri, srv_name) HTTPC_REQ_11_PROXY, host, uri, HTTPC_CLIENT_AGENT, srv_name
-
-/* GET request with proxy (non-default server port) */
-#define HTTPC_REQ_11_PROXY_PORT "GET http://%s:%d%s HTTP/1.1\r\n" /* HOST, host-port, URI */\
-    "User-Agent: %s\r\n" /* User-Agent */ \
-    "Accept: */*\r\n" \
-    "Host: %s\r\n" /* server name */ \
-    "Connection: Close\r\n" /* we don't support persistent connections, yet */ \
-    "\r\n"
-#define HTTPC_REQ_11_PROXY_PORT_FORMAT(host, host_port, uri, srv_name) HTTPC_REQ_11_PROXY_PORT, host, host_port, uri, HTTPC_CLIENT_AGENT, srv_name
+#define HTTPC_REQ_11_PROXY_FORMAT(proxy, uri, srv_name) HTTPC_REQ_11_PROXY, proxy, uri, srv_name
 
 typedef enum ehttpc_parse_state {
   HTTPC_PARSE_WAIT_FIRST_LINE = 0,
@@ -264,7 +241,7 @@ http_wait_headers(struct pbuf *p, u32_t *content_length, u16_t *total_header_len
         memset(content_len_num, 0, sizeof(content_len_num));
         if (pbuf_copy_partial(p, content_len_num, content_len_num_len, content_len_hdr + 16) == content_len_num_len) {
           int len = atoi(content_len_num);
-          if ((len >= 0) && ((u32_t)len < HTTPC_CONTENT_LEN_INVALID)) {
+          if ((len >= 0) && (len < HTTPC_CONTENT_LEN_INVALID)) {
             *content_length = (u32_t)len;
           }
         }
@@ -279,23 +256,12 @@ http_wait_headers(struct pbuf *p, u32_t *content_length, u16_t *total_header_len
 static err_t
 httpc_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t r)
 {
+  err_t ret = ERR_OK;
   httpc_state_t* req = (httpc_state_t*)arg;
   LWIP_UNUSED_ARG(r);
 
   if (p == NULL) {
-    httpc_result_t result;
-    if (req->parse_state != HTTPC_PARSE_RX_DATA) {
-      /* did not get RX data yet */
-      result = HTTPC_RESULT_ERR_CLOSED;
-    } else if ((req->hdr_content_len != HTTPC_CONTENT_LEN_INVALID) &&
-      (req->hdr_content_len != req->rx_content_len)) {
-      /* header has been received with content length but not all data received */
-      result = HTTPC_RESULT_ERR_CONTENT_LEN;
-    } else {
-      /* receiving data and either all data received or no content length header */
-      result = HTTPC_RESULT_OK;
-    }
-    return httpc_close(req, result, req->rx_status, ERR_OK);
+    return httpc_close(req, HTTPC_RESULT_OK, req->rx_status, ERR_OK);
   }
   if (req->parse_state != HTTPC_PARSE_RX_DATA) {
     if (req->rx_hdrs == NULL) {
@@ -313,11 +279,10 @@ httpc_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t r)
     }
     if (req->parse_state == HTTPC_PARSE_WAIT_HEADERS) {
       u16_t total_header_len;
-      err_t err = http_wait_headers(req->rx_hdrs, &req->hdr_content_len, &total_header_len);
+      err_t err = http_wait_headers(p, &req->hdr_content_len, &total_header_len);
       if (err == ERR_OK) {
+        /* hide header bytes in pbuf */
         struct pbuf *q;
-        /* full header received, send window update for header bytes and call into client callback */
-        altcp_recved(pcb, total_header_len);
         if (req->conn_settings) {
           if (req->conn_settings->headers_done_fn) {
             err = req->conn_settings->headers_done_fn(req, req->callback_arg, req->rx_hdrs, total_header_len, req->hdr_content_len);
@@ -326,7 +291,6 @@ httpc_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t r)
             }
           }
         }
-        /* hide header bytes in pbuf */
         q = pbuf_free_header(req->rx_hdrs, total_header_len);
         p = q;
         req->rx_hdrs = NULL;
@@ -338,8 +302,7 @@ httpc_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t r)
   if ((p != NULL) && (req->parse_state == HTTPC_PARSE_RX_DATA)) {
     req->rx_content_len += p->tot_len;
     if (req->recv_fn != NULL) {
-      /* directly return here: the connection migth already be aborted from the callback! */
-      return req->recv_fn(req->callback_arg, pcb, p, r);
+      ret = req->recv_fn(req->callback_arg, pcb, p, r);
     } else {
       altcp_recved(pcb, p->tot_len);
       pbuf_free(p);
@@ -432,7 +395,7 @@ httpc_get_internal_addr(httpc_state_t* req, const ip_addr_t *ipaddr)
   return err;
 }
 
-#if LWIP_DNS
+#if LWIP_IPV4 && LWIP_DNS
 /** DNS callback
  * If ipaddr is non-NULL, resolving succeeded and the request can be sent, otherwise it failed.
  */
@@ -459,7 +422,7 @@ httpc_dns_found(const char* hostname, const ip_addr_t *ipaddr, void *arg)
   }
   httpc_close(req, result, 0, err);
 }
-#endif /* LWIP_DNS */
+#endif /* LWIP_IPV4 && LWIP_DNS */
 
 /** Start the http request after converting 'server_name' to ip address (DNS or address string) */
 static err_t
@@ -484,16 +447,12 @@ httpc_get_internal_dns(httpc_state_t* req, const char* server_name)
 }
 
 static int
-httpc_create_request_string(const httpc_connection_t *settings, const char* server_name, int server_port, const char* uri,
+httpc_create_request_string(const httpc_connection_t *settings, const char* server_name, const char* uri,
                             int use_host, char *buffer, size_t buffer_size)
 {
   if (settings->use_proxy) {
     LWIP_ASSERT("server_name != NULL", server_name != NULL);
-    if (server_port != HTTP_DEFAULT_PORT) {
-      return snprintf(buffer, buffer_size, HTTPC_REQ_11_PROXY_PORT_FORMAT(server_name, server_port, uri, server_name));
-    } else {
-      return snprintf(buffer, buffer_size, HTTPC_REQ_11_PROXY_FORMAT(server_name, uri, server_name));
-    }
+    return snprintf(buffer, buffer_size, HTTPC_REQ_11_PROXY_FORMAT(server_name, uri, server_name));
   } else if (use_host) {
     LWIP_ASSERT("server_name != NULL", server_name != NULL);
     return snprintf(buffer, buffer_size, HTTPC_REQ_11_HOST_FORMAT(uri, server_name));
@@ -503,7 +462,7 @@ httpc_create_request_string(const httpc_connection_t *settings, const char* serv
 }
 
 /** Initialize the connection struct */
-static err_t
+err_t
 httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_t *settings, const char* server_name,
                       u16_t server_port, const char* uri, altcp_recv_fn recv_fn, void* callback_arg, int use_host)
 {
@@ -518,7 +477,7 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
   LWIP_ASSERT("uri != NULL", uri != NULL);
 
   /* get request len */
-  req_len = httpc_create_request_string(settings, server_name, server_port, uri, use_host, NULL, 0);
+  req_len = httpc_create_request_string(settings, server_name, uri, use_host, NULL, 0);
   if ((req_len < 0) || (req_len > 0xFFFF)) {
     return ERR_VAL;
   }
@@ -559,12 +518,12 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
   req->uri = req->server_name + server_name_len + 1;
   memcpy(req->uri, uri, uri_len + 1);
 #endif
-  req->pcb = altcp_new(settings->altcp_allocator);
+  req->pcb = altcp_tcp_new();
   if(req->pcb == NULL) {
     httpc_free_state(req);
     return ERR_MEM;
   }
-  req->remote_port = settings->use_proxy ? settings->proxy_port : server_port;
+  req->remote_port = server_port;
   altcp_arg(req->pcb, req);
   altcp_recv(req->pcb, httpc_tcp_recv);
   altcp_err(req->pcb, httpc_tcp_err);
@@ -572,7 +531,7 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
   altcp_sent(req->pcb, httpc_tcp_sent);
 
   /* set up request buffer */
-  req_len2 = httpc_create_request_string(settings, server_name, server_port, uri, use_host,
+  req_len2 = httpc_create_request_string(settings, server_name, uri, use_host,
     (char *)req->request->payload, req_len + 1);
   if (req_len2 != req_len) {
     httpc_free_state(req);
@@ -587,10 +546,8 @@ httpc_init_connection_common(httpc_state_t **connection, const httpc_connection_
   return ERR_OK;
 }
 
-/**
- * Initialize the connection struct
- */
-static err_t
+/** Initialize the connection struct */
+err_t
 httpc_init_connection(httpc_state_t **connection, const httpc_connection_t *settings, const char* server_name,
                       u16_t server_port, const char* uri, altcp_recv_fn recv_fn, void* callback_arg)
 {
@@ -598,10 +555,8 @@ httpc_init_connection(httpc_state_t **connection, const httpc_connection_t *sett
 }
 
 
-/**
- * Initialize the connection struct (from IP address)
- */
-static err_t
+/** Initialize the connection struct (from IP address) */
+err_t
 httpc_init_connection_addr(httpc_state_t **connection, const httpc_connection_t *settings,
                            const ip_addr_t* server_addr, u16_t server_port, const char* uri,
                            altcp_recv_fn recv_fn, void* callback_arg)
@@ -614,9 +569,7 @@ httpc_init_connection_addr(httpc_state_t **connection, const httpc_connection_t 
     recv_fn, callback_arg, 1);
 }
 
-/**
- * @ingroup httpc 
- * HTTP client API: get a file by passing server IP address
+/** HTTP client API: get a file by passing server IP address
  *
  * @param server_addr IP address of the server to connect
  * @param port tcp port of the server
@@ -643,11 +596,7 @@ httpc_get_file(const ip_addr_t* server_addr, u16_t port, const char* uri, const 
     return err;
   }
 
-  if (settings->use_proxy) {
-    err = httpc_get_internal_addr(req, &settings->proxy_addr);
-  } else {
-    err = httpc_get_internal_addr(req, server_addr);
-  }
+  err = httpc_get_internal_addr(req, server_addr);
   if(err != ERR_OK) {
     httpc_free_state(req);
     return err;
@@ -659,9 +608,7 @@ httpc_get_file(const ip_addr_t* server_addr, u16_t port, const char* uri, const 
   return ERR_OK;
 }
 
-/**
- * @ingroup httpc 
- * HTTP client API: get a file by passing server name as string (DNS name or IP address string)
+/** HTTP client API: get a file by passing server name as string (DNS name or IP address string)
  *
  * @param server_name server name as string (DNS name or IP address string)
  * @param port tcp port of the server
@@ -687,11 +634,7 @@ httpc_get_file_dns(const char* server_name, u16_t port, const char* uri, const h
     return err;
   }
 
-  if (settings->use_proxy) {
-    err = httpc_get_internal_addr(req, &settings->proxy_addr);
-  } else {
-    err = httpc_get_internal_dns(req, server_name);
-  }
+  err = httpc_get_internal_dns(req, server_name);
   if(err != ERR_OK) {
     httpc_free_state(req);
     return err;
@@ -730,7 +673,7 @@ httpc_fs_init(httpc_filestate_t **filestate_out, const char* local_file_name,
   file_len = strlen(local_file_name);
   alloc_len = sizeof(httpc_filestate_t) + file_len + 1;
 
-  filestate = (httpc_filestate_t *)mem_malloc((mem_size_t)alloc_len);
+  filestate = (httpc_filestate_t *)mem_malloc(alloc_len);
   if (filestate == NULL) {
     return ERR_MEM;
   }
@@ -801,9 +744,7 @@ httpc_fs_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err)
   return ERR_OK;
 }
 
-/**
- * @ingroup httpc 
- * HTTP client API: get a file to disk by passing server IP address
+/** HTTP client API: get a file to disk by passing server IP address
  *
  * @param server_addr IP address of the server to connect
  * @param port tcp port of the server
@@ -836,11 +777,7 @@ httpc_get_file_to_disk(const ip_addr_t* server_addr, u16_t port, const char* uri
     return err;
   }
 
-  if (settings->use_proxy) {
-    err = httpc_get_internal_addr(req, &settings->proxy_addr);
-  } else {
-    err = httpc_get_internal_addr(req, server_addr);
-  }
+  err = httpc_get_internal_addr(req, server_addr);
   if(err != ERR_OK) {
     httpc_fs_free(filestate);
     httpc_free_state(req);
@@ -853,9 +790,7 @@ httpc_get_file_to_disk(const ip_addr_t* server_addr, u16_t port, const char* uri
   return ERR_OK;
 }
 
-/**
- * @ingroup httpc 
- * HTTP client API: get a file to disk by passing server name as string (DNS name or IP address string)
+/** HTTP client API: get a file to disk by passing server name as string (DNS name or IP address string)
  *
  * @param server_name server name as string (DNS name or IP address string)
  * @param port tcp port of the server
@@ -888,11 +823,7 @@ httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char* uri,
     return err;
   }
 
-  if (settings->use_proxy) {
-    err = httpc_get_internal_addr(req, &settings->proxy_addr);
-  } else {
-    err = httpc_get_internal_dns(req, server_name);
-  }
+  err = httpc_get_internal_dns(req, server_name);
   if(err != ERR_OK) {
     httpc_fs_free(filestate);
     httpc_free_state(req);
@@ -905,5 +836,3 @@ httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char* uri,
   return ERR_OK;
 }
 #endif /* LWIP_HTTPC_HAVE_FILE_IO */
-
-#endif /* LWIP_TCP && LWIP_CALLBACK_API */

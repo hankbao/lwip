@@ -42,18 +42,12 @@
 #include "lwip/ip_addr.h"
 #include "lwip/err.h"
 #include "lwip/altcp.h"
-#include "lwip/prot/iana.h"
-#include "lwip/pbuf.h"
-
-#if LWIP_TCP && LWIP_CALLBACK_API
 
 #ifdef __cplusplus
 extern "C" {
 #endif
 
-/**
- * @ingroup httpc 
- * HTTPC_HAVE_FILE_IO: define this to 1 to have functions dowloading directly
+/** HTTPC_HAVE_FILE_IO: define this to 1 to have functions dowloading directly
  * to disk via fopen/fwrite.
  * These functions are example implementations of the interface only.
  */
@@ -61,16 +55,9 @@ extern "C" {
 #define LWIP_HTTPC_HAVE_FILE_IO   0
 #endif
 
-/**
- * @ingroup httpc 
- * The default TCP port used for HTTP
- */
-#define HTTP_DEFAULT_PORT         LWIP_IANA_PORT_HTTP
+/** The default TCP port used for HTTP */
+#define HTTP_DEFAULT_PORT         80
 
-/**
- * @ingroup httpc 
- * HTTP client result codes
- */
 typedef enum ehttpc_result {
   /** File successfully received */
   HTTPC_RESULT_OK            = 0,
@@ -89,19 +76,15 @@ typedef enum ehttpc_result {
   /** Local memory error */
   HTTPC_RESULT_ERR_MEM       = 7,
   /** Local abort */
-  HTTPC_RESULT_LOCAL_ABORT   = 8,
-  /** Content length mismatch */
-  HTTPC_RESULT_ERR_CONTENT_LEN = 9
+  HTTPC_RESULT_LOCAL_ABORT   = 8
 } httpc_result_t;
 
 typedef struct _httpc_state httpc_state_t;
 
-/**
- * @ingroup httpc 
- * Prototype of a http client callback function
+/** Prototype of a http client callback function
  *
  * @param arg argument specified when initiating the request
- * @param httpc_result result of the http transfer (see enum httpc_result_t)
+ * @param http_result result of the mail transfer (see enum httpc_result_t)
  * @param rx_content_len number of bytes received (without headers)
  * @param srv_res this contains the http status code received (if any)
  * @param err an error returned by internal lwip functions, can help to specify
@@ -109,9 +92,7 @@ typedef struct _httpc_state httpc_state_t;
  */
 typedef void (*httpc_result_fn)(void *arg, httpc_result_t httpc_result, u32_t rx_content_len, u32_t srv_res, err_t err);
 
-/**
- * @ingroup httpc 
- * Prototype of http client callback: called when the headers are received
+/** Prototype of http client callback: called when the headers are received
  *
  * @param connection http client connection
  * @param arg argument specified when initiating the request
@@ -127,10 +108,6 @@ typedef struct _httpc_connection {
   u16_t proxy_port;
   u8_t use_proxy;
   /* @todo: add username:pass? */
-
-#if LWIP_ALTCP
-  altcp_allocator_t *altcp_allocator;
-#endif
 
   /* this callback is called when the transfer is finished (or aborted) */
   httpc_result_fn result_fn;
@@ -154,7 +131,5 @@ err_t httpc_get_file_dns_to_disk(const char* server_name, u16_t port, const char
 #ifdef __cplusplus
 }
 #endif
-
-#endif /* LWIP_TCP && LWIP_CALLBACK_API */
 
 #endif /* LWIP_HDR_APPS_HTTP_CLIENT_H */
