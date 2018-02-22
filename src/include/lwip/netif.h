@@ -115,6 +115,7 @@ extern "C" {
 
 enum lwip_internal_netif_client_data_index
 {
+#if LWIP_IPV4
 #if LWIP_DHCP
    LWIP_NETIF_CLIENT_DATA_INDEX_DHCP,
 #endif
@@ -124,9 +125,15 @@ enum lwip_internal_netif_client_data_index
 #if LWIP_IGMP
    LWIP_NETIF_CLIENT_DATA_INDEX_IGMP,
 #endif
+#endif /* LWIP_IPV4 */
+#if LWIP_IPV6
+#if LWIP_IPV6_DHCP6
+   LWIP_NETIF_CLIENT_DATA_INDEX_DHCP6,
+#endif
 #if LWIP_IPV6_MLD
    LWIP_NETIF_CLIENT_DATA_INDEX_MLD6,
 #endif
+#endif /* LWIP_IPV6 */
    LWIP_NETIF_CLIENT_DATA_INDEX_MAX
 };
 
