@@ -43,6 +43,14 @@
 extern "C" {
 #endif
 
+/** Helper define for a MAC address, which can be encoded as 0, 2 or 8 bytes */
+struct ieee_802154_addr {
+  /* encoded length of the address */
+  u8_t addr_len;
+  /* address bytes */
+  u8_t addr[8];
+};
+
 #ifdef PACK_STRUCT_USE_INCLUDES
 #  include "arch/bpstruct.h"
 #endif
@@ -89,10 +97,10 @@ PACK_STRUCT_END
 #define IEEE_802154_FC_FT_FRAG                 0x06
 #define IEEE_802154_FC_FT_EXT                  0x07
 #define IEEE_802154_FC_SEC_EN              0x0008 /* bit 3: Security Enabled */
-#define IEEE_802154_FC_FRAME_PEND          0x0010 /* bit 4: Frame Pending */
-#define IEEE_802154_FC_ACK_REQ             0x0020 /* bit 5: AR (ACK required) */
-#define IEEE_802154_FC_PANID_COMPR         0x0040 /* bit 6: PAN ID Compression (src and dst are equal, src PAN ID omitted) */
-#define IEEE_802154_FC_RESERVED            0x0080
+#define IEEE_802154_FC_FRAME_PEND          0x1000 /* bit 4: Frame Pending */
+#define IEEE_802154_FC_ACK_REQ             0x2000 /* bit 5: AR (ACK required) */
+#define IEEE_802154_FC_PANID_COMPR         0x4000 /* bit 6: PAN ID Compression (src and dst are equal, src PAN ID omitted) */
+#define IEEE_802154_FC_RESERVED            0x8000
 #define IEEE_802154_FC_SEQNO_SUPPR         0x0100 /* bit 8: Sequence Number Suppression */
 #define IEEE_802154_FC_IE_PRESENT          0x0200 /* bit 9: IE Present */
 #define IEEE_802154_FC_DST_ADDR_MODE_MASK  0x0c00 /* bits 10..11: Destination Addressing Mode */
