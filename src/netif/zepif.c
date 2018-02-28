@@ -1,18 +1,14 @@
 /**
  * @file
  *
- * @defgroup zepif ZEP - ZigBee Encapsulation Protocol
- * @ingroup netifs
- * A netif implementing the ZigBee Encapsulation Protocol (ZEP).
+ * A netif implementing the ZigBee Eencapsulation Protocol (ZEP).
  * This is used to tunnel 6LowPAN over UDP.
  *
  * Usage (there must be a default netif before!):
- * @code{.c}
  *   netif_add(&zep_netif, NULL, NULL, NULL, NULL, zepif_init, tcpip_6lowpan_input);
  *   netif_create_ip6_linklocal_address(&zep_netif, 1);
  *   netif_set_up(&zep_netif);
  *   netif_set_link_up(&zep_netif);
- * @endcode
  */
 
 /*
@@ -47,18 +43,23 @@
  *
  */
 
+/**
+ * @defgroup sixlowpan 6LowPAN
+ * @ingroup netifs
+ * ZEP netif implementation
+ */
+
 #include "netif/zepif.h"
 
-#if LWIP_IPV6 && LWIP_UDP
+#if LWIP_IPV6 && LWIP_6LOWPAN
 
 #include "netif/lowpan6.h"
 #include "lwip/udp.h"
-#include "lwip/timeouts.h"
 #include <string.h>
 
 /** Define this to 1 to loop back TX packets for testing */
 #ifndef ZEPIF_LOOPBACK
-#define ZEPIF_LOOPBACK    0
+#define ZEPIF_LOOPBACK    1//0
 #endif
 
 #define ZEP_MAX_DATA_LEN  127
@@ -91,18 +92,6 @@ struct zepif_state {
   u32_t seqno;
 };
 
-static u8_t zep_lowpan_timer_running;
-
-/* Helper function that calls the 6LoWPAN timer and reschedules itself */
-static void
-zep_lowpan_timer(void *arg)
-{
-  lowpan6_tmr();
-  if (zep_lowpan_timer_running) {
-    sys_timeout(LOWPAN6_TMR_INTERVAL, zep_lowpan_timer, arg);
-  }
-}
-
 /* Pass received pbufs into 6LowPAN netif */
 static void
 zepif_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
@@ -114,7 +103,6 @@ zepif_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
 
   LWIP_ASSERT("arg != NULL", arg != NULL);
   LWIP_ASSERT("pcb != NULL", pcb != NULL);
-  LWIP_UNUSED_ARG(pcb); /* for LWIP_NOASSERT */
   LWIP_UNUSED_ARG(addr);
   LWIP_UNUSED_ARG(port);
   if (p == NULL) {
@@ -150,12 +138,10 @@ zepif_udp_recv(void *arg, struct udp_pcb *pcb, struct pbuf *p,
   if (pbuf_remove_header(p, sizeof(struct zep_hdr))) {
     goto err_return;
   }
-  /* TODO Check CRC? */
-  /* remove CRC trailer */
-  pbuf_realloc(p, p->tot_len - 2);
 
-  /* Call into 6LoWPAN code. */
-  err = netif_lowpan6->input(p, netif_lowpan6);
+  /* Call tcpip_6lowpan_input here, not netif->input as we know the direct call
+   * stack won't work as we could enter udp_input twice. */
+  err = tcpip_6lowpan_input(p, netif_lowpan6);
   if (err == ERR_OK) {
     return;
   }
@@ -206,16 +192,14 @@ zepif_linkoutput(struct netif *netif, struct pbuf *p)
 #if ZEPIF_LOOPBACK
     zepif_udp_recv(netif, state->pcb, pbuf_clone(PBUF_RAW, PBUF_RAM, q), NULL, 0);
 #endif
-    err = udp_sendto(state->pcb, q, state->init.zep_dst_ip_addr, state->init.zep_dst_udp_port);
+    err = udp_sendto(state->pcb, q, state->init.zep_ip_addr, state->init.zep_udp_port);
   }
   pbuf_free(q);
 
   return err;
 }
 
-/**
- * @ingroup zepif
- * Set up a raw 6LowPAN netif and surround it with input- and output
+/** Set up a raw 6LowPAN netif and surround it with input- and output
  * functions for ZEP
  */
 err_t
@@ -225,36 +209,28 @@ zepif_init(struct netif *netif)
   struct zepif_init *init_state = (struct zepif_init *)netif->state;
   struct zepif_state *state = (struct zepif_state *)mem_malloc(sizeof(struct zepif_state));
 
-  LWIP_ASSERT("zepif needs an input callback", netif->input != NULL);
-
   if (state == NULL) {
     return ERR_MEM;
   }
   memset(state, 0, sizeof(struct zepif_state));
   if (init_state != NULL) {
-    memcpy(&state->init, init_state, sizeof(struct zepif_init));
+    state->init = *init_state;
   }
-  if (state->init.zep_src_udp_port == 0) {
-    state->init.zep_src_udp_port = ZEPIF_DEFAULT_UDP_PORT;
+  if (state->init.zep_udp_port == 0) {
+    state->init.zep_udp_port = ZEPIF_DEFAULT_UDP_PORT;
   }
-  if (state->init.zep_dst_udp_port == 0) {
-    state->init.zep_dst_udp_port = ZEPIF_DEFAULT_UDP_PORT;
+  if (state->init.zep_ip_addr == NULL) {
+    state->init.zep_ip_addr = IP_ADDR_ANY;
   }
-#if LWIP_IPV4
-  if (state->init.zep_dst_ip_addr == NULL) {
-    /* With IPv4 enabled, default to broadcasting packets if no address is set */
-    state->init.zep_dst_ip_addr = IP_ADDR_BROADCAST;
-  }
-#endif /* LWIP_IPV4 */
 
   netif->state = NULL;
 
-  state->pcb = udp_new_ip_type(IPADDR_TYPE_ANY);
+  state->pcb = udp_new();
   if (state->pcb == NULL) {
     err = ERR_MEM;
     goto err_ret;
   }
-  err = udp_bind(state->pcb, state->init.zep_src_ip_addr, state->init.zep_src_udp_port);
+  err = udp_bind(state->pcb, state->init.zep_ip_addr, state->init.zep_udp_port);
   if (err != ERR_OK) {
     goto err_ret;
   }
@@ -280,12 +256,6 @@ zepif_init(struct netif *netif)
       netif->hwaddr[0] &= 0xfc;
     }
     netif->linkoutput = zepif_linkoutput;
-
-    if (!zep_lowpan_timer_running) {
-      sys_timeout(LOWPAN6_TMR_INTERVAL, zep_lowpan_timer, NULL);
-      zep_lowpan_timer_running = 1;
-    }
-
     return ERR_OK;
   }
 
@@ -297,4 +267,4 @@ err_ret:
   return err;
 }
 
-#endif /* LWIP_IPV6 && LWIP_UDP */
+#endif /* LWIP_IPV6 && LWIP_6LOWPAN */
