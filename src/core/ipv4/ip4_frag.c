@@ -345,7 +345,7 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
 {
   struct ip_reass_helper *iprh, *iprh_tmp, *iprh_prev = NULL;
   struct pbuf *q;
-  u16_t offset, len;
+  u16_t offset, len, clen;
   u8_t hlen;
   struct ip_hdr *fraghdr;
   int valid = 1;
@@ -356,7 +356,7 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
   hlen = IPH_HL_BYTES(fraghdr);
   if (hlen > len) {
     /* invalid datagram */
-    return IP_REASS_VALIDATE_PBUF_DROPPED;
+    goto freepbuf;
   }
   len = (u16_t)(len - hlen);
   offset = IPH_OFFSET_BYTES(fraghdr);
@@ -372,7 +372,7 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
   iprh->end = (u16_t)(offset + len);
   if (iprh->end < offset) {
     /* u16_t overflow, cannot handle this */
-    return IP_REASS_VALIDATE_PBUF_DROPPED;
+    goto freepbuf;
   }
 
   /* Iterate through until we either get to the end of the list (append),
@@ -387,7 +387,7 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
 #if IP_REASS_CHECK_OVERLAP
         if ((iprh->start < iprh_prev->end) || (iprh->end > iprh_tmp->start)) {
           /* fragment overlaps with previous or following, throw away */
-          return IP_REASS_VALIDATE_PBUF_DROPPED;
+          goto freepbuf;
         }
 #endif /* IP_REASS_CHECK_OVERLAP */
         iprh_prev->next_pbuf = new_p;
@@ -400,7 +400,7 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
 #if IP_REASS_CHECK_OVERLAP
         if (iprh->end > iprh_tmp->start) {
           /* fragment overlaps with following, throw away */
-          return IP_REASS_VALIDATE_PBUF_DROPPED;
+          goto freepbuf;
         }
 #endif /* IP_REASS_CHECK_OVERLAP */
         /* fragment with the lowest offset */
@@ -409,11 +409,11 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
       break;
     } else if (iprh->start == iprh_tmp->start) {
       /* received the same datagram twice: no need to keep the datagram */
-      return IP_REASS_VALIDATE_PBUF_DROPPED;
+      goto freepbuf;
 #if IP_REASS_CHECK_OVERLAP
     } else if (iprh->start < iprh_tmp->end) {
       /* overlap: no need to keep the new datagram */
-      return IP_REASS_VALIDATE_PBUF_DROPPED;
+      goto freepbuf;
 #endif /* IP_REASS_CHECK_OVERLAP */
     } else {
       /* Check if the fragments received so far have no holes. */
@@ -491,6 +491,14 @@ ip_reass_chain_frag_into_datagram_and_validate(struct ip_reassdata *ipr, struct 
   }
   /* If we come here, not all fragments were received, yet! */
   return IP_REASS_VALIDATE_PBUF_QUEUED; /* not yet valid! */
+#if IP_REASS_CHECK_OVERLAP
+freepbuf:
+  clen = pbuf_clen(new_p);
+  LWIP_ASSERT("ip_reass_pbufcount >= clen", ip_reass_pbufcount >= clen);
+  ip_reass_pbufcount = (u16_t)(ip_reass_pbufcount - clen);
+  pbuf_free(new_p);
+  return IP_REASS_VALIDATE_PBUF_DROPPED;
+#endif /* IP_REASS_CHECK_OVERLAP */
 }
 
 /**
@@ -516,7 +524,7 @@ ip4_reass(struct pbuf *p)
 
   fraghdr = (struct ip_hdr *)p->payload;
 
-  if (IPH_HL_BYTES(fraghdr) != IP_HLEN) {
+  if ((IPH_HL(fraghdr) * 4) != IP_HLEN) {
     LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: IP options currently not supported!\n"));
     IPFRAG_STATS_INC(ip_frag.err);
     goto nullreturn;
@@ -590,14 +598,14 @@ ip4_reass(struct pbuf *p)
     u16_t datagram_len = (u16_t)(offset + len);
     if ((datagram_len < offset) || (datagram_len > (0xFFFF - IP_HLEN))) {
       /* u16_t overflow, cannot handle this */
-      goto nullreturn_ipr;
+      goto nullreturn;
     }
   }
   /* find the right place to insert this pbuf */
   /* @todo: trim pbufs if fragments are overlapping */
   valid = ip_reass_chain_frag_into_datagram_and_validate(ipr, p, is_last);
   if (valid == IP_REASS_VALIDATE_PBUF_DROPPED) {
-    goto nullreturn_ipr;
+    goto nullreturn;
   }
   /* if we come here, the pbuf has been enqueued */
 
@@ -676,14 +684,6 @@ ip4_reass(struct pbuf *p)
   LWIP_DEBUGF(IP_REASS_DEBUG, ("ip_reass_pbufcount: %d out\n", ip_reass_pbufcount));
   return NULL;
 
-nullreturn_ipr:
-  LWIP_ASSERT("ipr != NULL", ipr != NULL);
-  if (ipr->p == NULL) {
-    /* dropped pbuf after creating a new datagram entry: remove the entry, too */
-    LWIP_ASSERT("not firstalthough just enqueued", ipr == reassdatagrams);
-    ip_reass_dequeue_datagram(ipr, NULL);
-  }
-
 nullreturn:
   LWIP_DEBUGF(IP_REASS_DEBUG, ("ip4_reass: nullreturn\n"));
   IPFRAG_STATS_INC(ip_frag.drop);
@@ -753,21 +753,16 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
   int last;
   u16_t poff = IP_HLEN;
   u16_t tmp;
-  int mf_set;
 
   original_iphdr = (struct ip_hdr *)p->payload;
   iphdr = original_iphdr;
-  if (IPH_HL_BYTES(iphdr) != IP_HLEN) {
-    /* ip4_frag() does not support IP options */
-    return ERR_VAL;
-  }
+  LWIP_ERROR("ip4_frag() does not support IP options", IPH_HL_BYTES(iphdr) == IP_HLEN, return ERR_VAL);
   LWIP_ERROR("ip4_frag(): pbuf too short", p->len >= IP_HLEN, return ERR_VAL);
 
   /* Save original offset */
   tmp = lwip_ntohs(IPH_OFFSET(iphdr));
   ofo = tmp & IP_OFFMASK;
-  /* already fragmented? if so, the last fragment we create must have MF, too */
-  mf_set = tmp & IP_MF;
+  LWIP_ERROR("ip_frag(): MF already set", (tmp & IP_MF) == 0, return ERR_VAL);
 
   left = (u16_t)(p->tot_len - IP_HLEN);
 
@@ -802,7 +797,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
       goto memerr;
     }
     LWIP_ASSERT("this needs a pbuf in one piece!",
-                (rambuf->len >= (IP_HLEN)));
+                (p->len >= (IP_HLEN)));
     SMEMCPY(rambuf->payload, original_iphdr, IP_HLEN);
     iphdr = (struct ip_hdr *)rambuf->payload;
 
@@ -853,8 +848,7 @@ ip4_frag(struct pbuf *p, struct netif *netif, const ip4_addr_t *dest)
 
     /* Set new offset and MF flag */
     tmp = (IP_OFFMASK & (ofo));
-    if (!last || mf_set) {
-      /* the last fragment has MF set if the input frame had it */
+    if (!last) {
       tmp = tmp | IP_MF;
     }
     IPH_OFFSET_SET(iphdr, lwip_htons(tmp));

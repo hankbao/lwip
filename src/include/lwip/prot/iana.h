@@ -41,10 +41,6 @@
 #ifndef LWIP_HDR_PROT_IANA_H
 #define LWIP_HDR_PROT_IANA_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @ingroup iana
  * Hardware types
@@ -87,11 +83,7 @@ enum lwip_iana_port_number {
   /** MDNS */
   LWIP_IANA_PORT_MDNS        = 5353,
   /** Secure MQTT */
-  LWIP_IANA_PORT_SECURE_MQTT = 8883
+  LWIP_IANA_PORT_SEQURE_MQTT = 8883
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* LWIP_HDR_PROT_IANA_H */

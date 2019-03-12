@@ -41,10 +41,6 @@
 #ifndef LWIP_HDR_PROT_IEEE_H
 #define LWIP_HDR_PROT_IEEE_H
 
-#ifdef __cplusplus
-extern "C" {
-#endif
-
 /**
  * @ingroup ieee
  * A list of often ethtypes (although lwIP does not use all of them).
@@ -83,9 +79,5 @@ enum lwip_ieee_eth_type {
   /** Q-in-Q, 802.1ad */
   ETHTYPE_QINQ      = 0x9100U
 };
-
-#ifdef __cplusplus
-}
-#endif
 
 #endif /* LWIP_HDR_PROT_IEEE_H */

@@ -54,7 +54,7 @@
  * Enable TFTP debug messages
  */
 #if !defined TFTP_DEBUG || defined __DOXYGEN__
-#define TFTP_DEBUG            LWIP_DBG_OFF
+#define TFTP_DEBUG            LWIP_DBG_ON
 #endif
 
 /**
@@ -82,7 +82,7 @@
  * TFTP timer cyclic interval
  */
 #if !defined TFTP_TIMER_MSECS || defined __DOXYGEN__
-#define TFTP_TIMER_MSECS      (TFTP_TIMEOUT_MSECS / 10)
+#define TFTP_TIMER_MSECS      50
 #endif
 
 /**

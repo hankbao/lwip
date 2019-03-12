@@ -8,18 +8,12 @@ LWIP_MEMPOOL_DECLARE(RX_POOL, 10, sizeof(my_custom_pbuf_t), "Zero-copy RX PBUF p
 
 void my_pbuf_free_custom(void* p)
 {
-  SYS_ARCH_DECL_PROTECT(old_level);
-
   my_custom_pbuf_t* my_puf = (my_custom_pbuf_t*)p;
 
-  // invalidate data cache here - lwIP and/or application may have written into buffer!
-  // (invalidate is faster than flushing, and noone needs the correct data in the buffer)
-  invalidate_cpu_cache(p->payload, p->tot_len);
-
-  SYS_ARCH_PROTECT(old_level);
+  LOCK_INTERRUPTS();
   free_rx_dma_descriptor(my_pbuf->dma_descriptor);
   LWIP_MEMPOOL_FREE(RX_POOL, my_pbuf);
-  SYS_ARCH_UNPROTECT(old_level);
+  UNLOCK_INTERRUPTS();
 }
 
 void eth_rx_irq()

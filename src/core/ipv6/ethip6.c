@@ -82,8 +82,6 @@ ethip6_output(struct netif *netif, struct pbuf *q, const ip6_addr_t *ip6addr)
   const u8_t *hwaddr;
   err_t result;
 
-  LWIP_ASSERT_CORE_LOCKED();
-
   /* The destination IP address must be properly zoned from here on down. */
   IP6_ADDR_ZONECHECK_NETIF(ip6addr, netif);
 

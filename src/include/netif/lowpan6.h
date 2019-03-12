@@ -44,9 +44,8 @@
 
 #include "netif/lowpan6_opts.h"
 
-#if LWIP_IPV6
+#if LWIP_IPV6 && LWIP_6LOWPAN /* don't build if not configured for use in lwipopts.h */
 
-#include "netif/lowpan6_common.h"
 #include "lwip/pbuf.h"
 #include "lwip/ip.h"
 #include "lwip/ip_addr.h"
@@ -56,7 +55,7 @@
 extern "C" {
 #endif
 
-/** 1 second period for reassembly */
+/** 1 second period */
 #define LOWPAN6_TMR_INTERVAL 1000
 
 void lowpan6_tmr(void);
@@ -74,8 +73,6 @@ err_t lowpan6_if_init(struct netif *netif);
 /* pan_id in network byte order. */
 err_t lowpan6_set_pan_id(u16_t pan_id);
 
-u16_t lowpan6_calc_crc(const void *buf, u16_t len);
-
 #if !NO_SYS
 err_t tcpip_6lowpan_input(struct pbuf *p, struct netif *inp);
 #endif /* !NO_SYS */
@@ -84,6 +81,6 @@ err_t tcpip_6lowpan_input(struct pbuf *p, struct netif *inp);
 }
 #endif
 
-#endif /* LWIP_IPV6 */
+#endif /* LWIP_IPV6 && LWIP_6LOWPAN */
 
 #endif /* LWIP_HDR_LOWPAN6_H */

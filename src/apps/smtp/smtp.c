@@ -65,7 +65,7 @@
 #include "lwip/altcp_tcp.h"
 #include "lwip/altcp_tls.h"
 
-#include <string.h> /* strlen, memcpy */
+#include <string.h> /* strnlen, memcpy */
 #include <stdlib.h>
 
 /** TCP poll interval. Unit is 0.5 sec. */
@@ -292,9 +292,7 @@ static char smtp_auth_plain[SMTP_MAX_USERNAME_LEN + SMTP_MAX_PASS_LEN + 3];
 /** Length of smtp_auth_plain string (cannot use strlen since it includes \0) */
 static size_t smtp_auth_plain_len;
 
-#if SMTP_CHECK_DATA
 static err_t  smtp_verify(const char *data, size_t data_len, u8_t linebreaks_allowed);
-#endif /* SMTP_CHECK_DATA */
 static err_t  smtp_tcp_recv(void *arg, struct altcp_pcb *pcb, struct pbuf *p, err_t err);
 static void   smtp_tcp_err(void *arg, err_t err);
 static err_t  smtp_tcp_poll(void *arg, struct altcp_pcb *pcb);
@@ -303,9 +301,7 @@ static err_t  smtp_tcp_connected(void *arg, struct altcp_pcb *pcb, err_t err);
 #if LWIP_DNS
 static void   smtp_dns_found(const char* hostname, const ip_addr_t *ipaddr, void *arg);
 #endif /* LWIP_DNS */
-#if SMTP_SUPPORT_AUTH_PLAIN || SMTP_SUPPORT_AUTH_LOGIN
 static size_t smtp_base64_encode(char* target, size_t target_len, const char* source, size_t source_len);
-#endif /* SMTP_SUPPORT_AUTH_PLAIN || SMTP_SUPPORT_AUTH_LOGIN */
 static enum   smtp_session_state smtp_prepare_mail(struct smtp_session *s, u16_t *tx_buf_len);
 static void   smtp_send_body(struct smtp_session *s, struct altcp_pcb *pcb);
 static void   smtp_process(void *arg, struct altcp_pcb *pcb, struct pbuf *p);
@@ -349,12 +345,10 @@ err_t
 smtp_set_server_addr(const char* server)
 {
   size_t len = 0;
-
-  LWIP_ASSERT_CORE_LOCKED();
-
   if (server != NULL) {
-    /* strlen: returns length WITHOUT terminating 0 byte */
-    len = strlen(server);
+    /* strnlen: returns length WITHOUT terminating 0 byte OR
+     * SMTP_MAX_SERVERNAME_LEN+1 when string is too long */
+    len = strnlen(server, SMTP_MAX_SERVERNAME_LEN+1);
   }
   if (len > SMTP_MAX_SERVERNAME_LEN) {
     return ERR_MEM;
@@ -374,7 +368,6 @@ smtp_set_server_addr(const char* server)
 void
 smtp_set_server_port(u16_t port)
 {
-  LWIP_ASSERT_CORE_LOCKED();
   smtp_server_port = port;
 }
 
@@ -387,7 +380,6 @@ smtp_set_server_port(u16_t port)
 void
 smtp_set_tls_config(struct altcp_tls_config *tls_config)
 {
-  LWIP_ASSERT_CORE_LOCKED();
   smtp_server_tls_config = tls_config;
 }
 #endif
@@ -403,8 +395,6 @@ smtp_set_auth(const char* username, const char* pass)
 {
   size_t uname_len = 0;
   size_t pass_len = 0;
-
-  LWIP_ASSERT_CORE_LOCKED();
 
   memset(smtp_auth_plain, 0xfa, 64);
   if (username != NULL) {
@@ -459,15 +449,18 @@ smtp_setup_pcb(struct smtp_session *s, const ip_addr_t* remote_ip)
   struct altcp_pcb* pcb;
   LWIP_UNUSED_ARG(remote_ip);
 
-#if LWIP_ALTCP && LWIP_ALTCP_TLS
-  if (smtp_server_tls_config) {
-    pcb = altcp_tls_new(smtp_server_tls_config, IP_GET_TYPE(remote_ip));
-  } else
-#endif
-  {
-    pcb = altcp_tcp_new_ip_type(IP_GET_TYPE(remote_ip));
-  }
+  pcb = altcp_tcp_new_ip_type(IP_GET_TYPE(remote_ip));
   if (pcb != NULL) {
+#if LWIP_ALTCP && LWIP_ALTCP_TLS
+    if (smtp_server_tls_config) {
+      struct altcp_pcb *pcb_tls = altcp_tls_new(smtp_server_tls_config, pcb);
+      if (pcb_tls == NULL) {
+        altcp_close(pcb);
+        return NULL;
+      }
+      pcb = pcb_tls;
+    }
+#endif
     altcp_arg(pcb, s);
     altcp_recv(pcb, smtp_tcp_recv);
     altcp_err(pcb, smtp_tcp_err);
@@ -593,8 +586,6 @@ smtp_send_mail(const char* from, const char* to, const char* subject, const char
   size_t mem_len = sizeof(struct smtp_session);
   char *sfrom, *sto, *ssubject, *sbody;
 
-  LWIP_ASSERT_CORE_LOCKED();
-
   mem_len += from_len + to_len + subject_len + body_len + 4;
   if (mem_len > 0xffff) {
     /* too long! */
@@ -642,8 +633,6 @@ smtp_send_mail_static(const char *from, const char* to, const char* subject,
 {
   struct smtp_session* s;
   size_t len;
-
-  LWIP_ASSERT_CORE_LOCKED();
 
   s = (struct smtp_session*)SMTP_STATE_MALLOC(sizeof(struct smtp_session));
   if (s == NULL) {
@@ -697,7 +686,6 @@ smtp_send_mail_int(void *arg)
   struct smtp_send_request *req = (struct smtp_send_request*)arg;
   err_t err;
 
-  LWIP_ASSERT_CORE_LOCKED();
   LWIP_ASSERT("smtp_send_mail_int: no argument given", arg != NULL);
 
   if (req->static_data) {
@@ -1471,8 +1459,6 @@ smtp_send_mail_bodycback(const char *from, const char* to, const char* subject,
   struct smtp_session* s;
   size_t len;
 
-  LWIP_ASSERT_CORE_LOCKED();
-
   s = (struct smtp_session*)SMTP_STATE_MALLOC(sizeof(struct smtp_session));
   if (s == NULL) {
     return ERR_MEM;
@@ -1483,7 +1469,7 @@ smtp_send_mail_bodycback(const char *from, const char* to, const char* subject,
     SMTP_STATE_FREE(s);
     return ERR_MEM;
   }
-  memset(s->bodydh, 0, sizeof(struct smtp_bodydh_state));
+  memset(s->bodydh, 0, sizeof(struct smtp_bodydh));
   /* initialize the structure */
   s->from = from;
   len = strlen(from);
@@ -1510,10 +1496,9 @@ smtp_send_mail_bodycback(const char *from, const char* to, const char* subject,
 static void
 smtp_send_body_data_handler(struct smtp_session *s, struct altcp_pcb *pcb)
 {
-  struct smtp_bodydh_state *bdh;
+  struct smtp_bodydh_state *bdh = s->bodydh;
   int res = 0, ret;
   LWIP_ASSERT("s != NULL", s != NULL);
-  bdh = s->bodydh;
   LWIP_ASSERT("bodydh != NULL", bdh != NULL);
 
   /* resume any leftovers from prior memory constraints */

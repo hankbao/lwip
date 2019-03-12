@@ -55,11 +55,7 @@ threadsync_get_value_synced(void *ctx)
 {
   struct threadsync_data *call_data = (struct threadsync_data *)ctx;
 
-  if (call_data->proxy_instance.get_value != NULL) {
-    call_data->retval.s16 = call_data->proxy_instance.get_value(&call_data->proxy_instance, call_data->arg1.value);
-  } else {
-    call_data->retval.s16 = -1;
-  }
+  call_data->retval.s16 = call_data->proxy_instance.get_value(&call_data->proxy_instance, call_data->arg1.value);
 
   sys_sem_signal(&call_data->threadsync_node->instance->sem);
 }
@@ -80,11 +76,7 @@ threadsync_set_test_synced(void *ctx)
 {
   struct threadsync_data *call_data = (struct threadsync_data *)ctx;
 
-  if (call_data->proxy_instance.set_test != NULL) {
-    call_data->retval.err = call_data->proxy_instance.set_test(&call_data->proxy_instance, call_data->arg2.len, call_data->arg1.value);
-  } else {
-    call_data->retval.err = SNMP_ERR_NOTWRITABLE;
-  }
+  call_data->retval.err = call_data->proxy_instance.set_test(&call_data->proxy_instance, call_data->arg2.len, call_data->arg1.value);
 
   sys_sem_signal(&call_data->threadsync_node->instance->sem);
 }
@@ -106,11 +98,7 @@ threadsync_set_value_synced(void *ctx)
 {
   struct threadsync_data *call_data = (struct threadsync_data *)ctx;
 
-  if (call_data->proxy_instance.set_value != NULL) {
-    call_data->retval.err = call_data->proxy_instance.set_value(&call_data->proxy_instance, call_data->arg2.len, call_data->arg1.value);
-  } else {
-    call_data->retval.err = SNMP_ERR_NOTWRITABLE;
-  }
+  call_data->retval.err = call_data->proxy_instance.set_value(&call_data->proxy_instance, call_data->arg2.len, call_data->arg1.value);
 
   sys_sem_signal(&call_data->threadsync_node->instance->sem);
 }

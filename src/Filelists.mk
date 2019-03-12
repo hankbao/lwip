@@ -43,7 +43,6 @@ COREFILES=$(LWIPDIR)/core/init.c \
 	$(LWIPDIR)/core/stats.c \
 	$(LWIPDIR)/core/sys.c \
 	$(LWIPDIR)/core/altcp.c \
-	$(LWIPDIR)/core/altcp_alloc.c \
 	$(LWIPDIR)/core/altcp_tcp.c \
 	$(LWIPDIR)/core/tcp.c \
 	$(LWIPDIR)/core/tcp_in.c \
@@ -84,14 +83,10 @@ APIFILES=$(LWIPDIR)/api/api_lib.c \
 # NETIFFILES: Files implementing various generic network interface functions
 NETIFFILES=$(LWIPDIR)/netif/ethernet.c \
 	$(LWIPDIR)/netif/bridgeif.c \
-	$(LWIPDIR)/netif/bridgeif_fdb.c \
 	$(LWIPDIR)/netif/slipif.c
 
 # SIXLOWPAN: 6LoWPAN
-SIXLOWPAN=$(LWIPDIR)/netif/lowpan6_common.c \
-        $(LWIPDIR)/netif/lowpan6.c \
-	$(LWIPDIR)/netif/lowpan6_ble.c \
-	$(LWIPDIR)/netif/zepif.c
+SIXLOWPAN=$(LWIPDIR)/netif/lowpan6.c \
 
 # PPPFILES: PPP
 PPPFILES=$(LWIPDIR)/netif/ppp/auth.c \
@@ -157,14 +152,12 @@ SNMPFILES=$(LWIPDIR)/apps/snmp/snmp_asn1.c \
 	$(LWIPDIR)/apps/snmp/snmp_threadsync.c \
 	$(LWIPDIR)/apps/snmp/snmp_traps.c
 
-# HTTPFILES: HTTP server + client
-HTTPFILES=$(LWIPDIR)/apps/http/altcp_proxyconnect.c \
-	$(LWIPDIR)/apps/http/fs.c \
-	$(LWIPDIR)/apps/http/http_client.c \
-	$(LWIPDIR)/apps/http/httpd.c
+# HTTPDFILES: HTTP server
+HTTPDFILES=$(LWIPDIR)/apps/httpd/fs.c \
+	$(LWIPDIR)/apps/httpd/httpd.c
 
 # MAKEFSDATA: MAKEFSDATA HTTP server host utility
-MAKEFSDATAFILES=$(LWIPDIR)/apps/http/makefsdata/makefsdata.c
+MAKEFSDATAFILES=$(LWIPDIR)/apps/httpd/makefsdata/makefsdata.c
 
 # LWIPERFFILES: IPERF server
 LWIPERFFILES=$(LWIPDIR)/apps/lwiperf/lwiperf.c
@@ -194,7 +187,7 @@ MBEDTLS_FILES=$(LWIPDIR)/apps/altcp_tls/altcp_tls_mbedtls.c \
 
 # LWIPAPPFILES: All LWIP APPs
 LWIPAPPFILES=$(SNMPFILES) \
-	$(HTTPFILES) \
+	$(HTTPDFILES) \
 	$(LWIPERFFILES) \
 	$(SMTPFILES) \
 	$(SNTPFILES) \

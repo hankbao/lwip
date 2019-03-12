@@ -6,12 +6,7 @@
  * @ingroup ip6
  * Multicast listener discovery for IPv6. Aims to be compliant with RFC 2710.
  * No support for MLDv2.\n
- * Note: The allnodes (ff01::1, ff02::1) group is assumed be received by your 
- * netif since it must always be received for correct IPv6 operation (e.g. SLAAC).
- * Ensure the netif filters are configured accordingly!\n
- * The netif flags also need NETIF_FLAG_MLD6 flag set to enable MLD6 on a
- * netif ("netif->flags |= NETIF_FLAG_MLD6;").\n
- * To be called from TCPIP thread.
+ * To be called from TCPIP thread
  */
 
 /*
@@ -317,8 +312,6 @@ mld6_joingroup(const ip6_addr_t *srcaddr, const ip6_addr_t *groupaddr)
   err_t         err = ERR_VAL; /* no matching interface */
   struct netif *netif;
 
-  LWIP_ASSERT_CORE_LOCKED();
-
   /* loop through netif's */
   NETIF_FOREACH(netif) {
     /* Should we join this interface ? */
@@ -359,8 +352,6 @@ mld6_joingroup_netif(struct netif *netif, const ip6_addr_t *groupaddr)
   }
   IP6_ADDR_ZONECHECK_NETIF(groupaddr, netif);
 #endif /* LWIP_IPV6_SCOPES */
-
-  LWIP_ASSERT_CORE_LOCKED();
 
   /* find group or create a new one if not found */
   group = mld6_lookfor_group(netif, groupaddr);
@@ -406,8 +397,6 @@ mld6_leavegroup(const ip6_addr_t *srcaddr, const ip6_addr_t *groupaddr)
   err_t         err = ERR_VAL; /* no matching interface */
   struct netif *netif;
 
-  LWIP_ASSERT_CORE_LOCKED();
-
   /* loop through netif's */
   NETIF_FOREACH(netif) {
     /* Should we leave this interface ? */
@@ -447,8 +436,6 @@ mld6_leavegroup_netif(struct netif *netif, const ip6_addr_t *groupaddr)
   }
   IP6_ADDR_ZONECHECK_NETIF(groupaddr, netif);
 #endif /* LWIP_IPV6_SCOPES */
-
-  LWIP_ASSERT_CORE_LOCKED();
 
   /* find group */
   group = mld6_lookfor_group(netif, groupaddr);
