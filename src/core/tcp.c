@@ -737,6 +737,7 @@ tcp_bind(struct tcp_pcb *pcb, const ip_addr_t *ipaddr, u16_t port)
     }
   }
 
+  pcb->bound_to_netif = 0;
   if (!ip_addr_isany(ipaddr)
 #if LWIP_IPV4 && LWIP_IPV6
       || (IP_GET_TYPE(ipaddr) != IP_GET_TYPE(&pcb->local_ip))
@@ -769,6 +770,29 @@ tcp_bind_netif(struct tcp_pcb *pcb, const struct netif *netif)
   } else {
     pcb->netif_idx = NETIF_NO_INDEX;
   }
+}
+
+err_t
+tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
+{
+  LWIP_ERROR("tcp_bind_if: can only bind in state CLOSED", pcb->state == CLOSED, return ERR_ISCONN);
+
+  /* Check if the interface is already in use */
+  for (int i = 0; i < NUM_TCP_PCB_LISTS; i++) {
+    for (struct tcp_pcb *cpcb = *tcp_pcb_lists[i]; cpcb != NULL; cpcb = cpcb->next) {
+      if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, 3)) {
+        return ERR_USE;
+      }
+    }
+  }
+
+  pcb->bound_to_netif = 1;
+  ip_addr_set_any(IP_IS_V6_VAL(pcb->local_ip), &pcb->local_ip);
+  pcb->local_port = 0;
+  memcpy(pcb->local_netif, ifname, 3);
+  TCP_REG(&tcp_bound_pcbs, pcb);
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %s", ifname));
+  return ERR_OK;
 }
 
 #if LWIP_CALLBACK_API
@@ -865,7 +889,7 @@ tcp_listen_with_backlog_and_err(struct tcp_pcb *pcb, u8_t backlog, err_t *err)
     goto done;
   }
 #if SO_REUSE
-  if (ip_get_option(pcb, SOF_REUSEADDR)) {
+  if (ip_get_option(pcb, SOF_REUSEADDR) && !pcb->have_local_netif) {
     /* Since SOF_REUSEADDR allows reusing a local address before the pcb's usage
        is declared (listen-/connection-pcb), we have to make sure now that
        this port is only used once for every local IP. */
@@ -886,7 +910,9 @@ tcp_listen_with_backlog_and_err(struct tcp_pcb *pcb, u8_t backlog, err_t *err)
     goto done;
   }
   lpcb->callback_arg = pcb->callback_arg;
+  lpcb->bound_to_netif = pcb->bound_to_netif;
   lpcb->local_port = pcb->local_port;
+  memcpy(lpcb->local_netif, pcb->local_netif, sizeof(pcb->local_netif));
   lpcb->state = LISTEN;
   lpcb->prio = pcb->prio;
   lpcb->so_options = pcb->so_options;
