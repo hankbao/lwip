@@ -315,6 +315,8 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* Finally, if we still did not get a match, we check all PCBs that
        are LISTENing for incoming connections. */
     prev = NULL;
+    struct tcp_pcb_listen *netif_pcb = NULL;
+    struct tcp_pcb *netif_pcb_prev = NULL;
     for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
       /* check if PCB is bound to specific netif */
       if ((lpcb->netif_idx != NETIF_NO_INDEX) &&
@@ -323,7 +325,12 @@ tcp_input(struct pbuf *p, struct netif *inp)
         continue;
       }
 
-      if (lpcb->local_port == tcphdr->dest) {
+      if (lpcb->bound_to_netif) {
+        if (netif_is_named(inp, lpcb->local_netif)) {
+          netif_pcb = lpcb;
+          netif_pcb_prev = prev;
+        }
+      } else if (lpcb->local_port == tcphdr->dest) {
         if (IP_IS_ANY_TYPE_VAL(lpcb->local_ip)) {
           /* found an ANY TYPE (IPv4/IPv6) match */
 #if SO_REUSE
@@ -357,6 +364,10 @@ tcp_input(struct pbuf *p, struct netif *inp)
       prev = lpcb_prev;
     }
 #endif /* SO_REUSE */
+    if (lpcb == NULL && netif_pcb) {
+      lpcb = netif_pcb;
+      prev = netif_pcb_prev;
+    }
     if (lpcb != NULL) {
       /* Move this PCB to the front of the list so that subsequent
          lookups will be faster (we exploit locality in TCP segment
@@ -674,8 +685,10 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
 #endif /* TCP_LISTEN_BACKLOG */
     /* Set up the new PCB. */
     ip_addr_copy(npcb->local_ip, *ip_current_dest_addr());
+    npcb->bound_to_netif = pcb->bound_to_netif;
+    npcb->local_port = tcphdr->dest;
+    memcpy(npcb->local_netif, pcb->local_netif, sizeof(pcb->local_netif));
     ip_addr_copy(npcb->remote_ip, *ip_current_src_addr());
-    npcb->local_port = pcb->local_port;
     npcb->remote_port = tcphdr->src;
     npcb->state = SYN_RCVD;
     npcb->rcv_nxt = seqno + 1;
