@@ -780,7 +780,7 @@ tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
   /* Check if the interface is already in use */
   for (int i = 0; i < NUM_TCP_PCB_LISTS; i++) {
     for (struct tcp_pcb *cpcb = *tcp_pcb_lists[i]; cpcb != NULL; cpcb = cpcb->next) {
-      if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, 3)) {
+      if (cpcb->bound_to_netif && !memcmp(cpcb->local_netif, ifname, sizeof(cpcb->local_netif))) {
         return ERR_USE;
       }
     }
@@ -789,9 +789,9 @@ tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3])
   pcb->bound_to_netif = 1;
   ip_addr_set_any(IP_IS_V6_VAL(pcb->local_ip), &pcb->local_ip);
   pcb->local_port = 0;
-  memcpy(pcb->local_netif, ifname, 3);
+  memcpy(pcb->local_netif, ifname, sizeof(pcb->local_netif));
   TCP_REG(&tcp_bound_pcbs, pcb);
-  LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %s", ifname));
+  LWIP_DEBUGF(TCP_DEBUG, ("tcp_bind_if: bind to interface %c%c%c", ifname[0], ifname[1], ifname[2]));
   return ERR_OK;
 }
 
