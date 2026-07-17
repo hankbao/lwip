@@ -450,6 +450,7 @@ void netif_remove(struct netif * netif);
 struct netif *netif_find(const char *name);
 
 int netif_is_named(struct netif *netif, const char name[3]);
+void netif_set_pretend_tcp(struct netif *netif, u8_t pretend);
 
 void netif_set_default(struct netif *netif);
 
@@ -457,7 +458,6 @@ void netif_set_default(struct netif *netif);
 void netif_set_ipaddr(struct netif *netif, const ip4_addr_t *ipaddr);
 void netif_set_netmask(struct netif *netif, const ip4_addr_t *netmask);
 void netif_set_gw(struct netif *netif, const ip4_addr_t *gw);
-void netif_set_pretend_tcp(struct netif *netif, u8_t pretend);
 /** @ingroup netif_ip4 */
 #define netif_ip4_addr(netif)    ((const ip4_addr_t*)ip_2_ip4(&((netif)->ip_addr)))
 /** @ingroup netif_ip4 */
@@ -472,8 +472,10 @@ void netif_set_pretend_tcp(struct netif *netif, u8_t pretend);
 #define netif_ip_gw4(netif)      ((const ip_addr_t*)&((netif)->gw))
 #endif /* LWIP_IPV4 */
 
-#define netif_set_flags(netif, set_flags)     do { (netif)->flags = (u8_t)((netif)->flags |  (set_flags)); } while(0)
-#define netif_clear_flags(netif, clr_flags)   do { (netif)->flags = (u8_t)((netif)->flags & (u8_t)(~(clr_flags) & 0xff)); } while(0)
+/* flags is u16_t (NETIF_FLAG_PRETEND_TCP lives above bit 7): these must not
+   truncate to u8_t or any set_up/set_down would silently drop high flags. */
+#define netif_set_flags(netif, set_flags)     do { (netif)->flags = (u16_t)((netif)->flags |  (set_flags)); } while(0)
+#define netif_clear_flags(netif, clr_flags)   do { (netif)->flags = (u16_t)((netif)->flags & (u16_t)(~(clr_flags) & 0xffff)); } while(0)
 #define netif_is_flag_set(netif, flag)        (((netif)->flags & (flag)) != 0)
 
 void netif_set_up(struct netif *netif);
