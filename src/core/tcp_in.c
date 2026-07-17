@@ -326,7 +326,9 @@ tcp_input(struct pbuf *p, struct netif *inp)
       }
 
       if (lpcb->bound_to_netif) {
-        if (netif_is_named(inp, lpcb->local_netif)) {
+        if (IP_ADDR_PCB_VERSION_MATCH(lpcb, ip_current_dest_addr()) &&
+            netif_is_named(inp, lpcb->local_netif)) {
+          LWIP_DEBUGF(TCP_DEBUG, ("tcp_input: found lpcb->bound_to_netif, set netif_pcb(_prev)\n"));
           netif_pcb = lpcb;
           netif_pcb_prev = prev;
         }
@@ -685,10 +687,11 @@ tcp_listen_input(struct tcp_pcb_listen *pcb)
 #endif /* TCP_LISTEN_BACKLOG */
     /* Set up the new PCB. */
     ip_addr_copy(npcb->local_ip, *ip_current_dest_addr());
-    npcb->bound_to_netif = pcb->bound_to_netif;
-    npcb->local_port = tcphdr->dest;
-    memcpy(npcb->local_netif, pcb->local_netif, sizeof(pcb->local_netif));
     ip_addr_copy(npcb->remote_ip, *ip_current_src_addr());
+    /* npcb->bound_to_netif is 0 regardless of lpcb: accepted pcbs carry the
+       concrete address/port, so residual TIME_WAIT pcbs never block a new
+       netif-bound listener and CLOSED-state cleanup stays untouched. */
+    npcb->local_port = tcphdr->dest;
     npcb->remote_port = tcphdr->src;
     npcb->state = SYN_RCVD;
     npcb->rcv_nxt = seqno + 1;

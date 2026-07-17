@@ -216,7 +216,7 @@ typedef u16_t tcpflags_t;
   enum tcp_state state; /* TCP state */ \
   u8_t prio; \
   /* ports are in host byte order */ \
-  int bound_to_netif; \
+  u8_t bound_to_netif; \
   u16_t local_port; \
   char local_netif[3]
 
