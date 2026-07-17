@@ -81,10 +81,11 @@ static HCRYPTPROV hcrypt;
 static void
 sys_win_rand_init(void)
 {
+  DWORD err;
   if (CryptAcquireContext(&hcrypt, NULL, NULL, PROV_RSA_FULL, CRYPT_VERIFYCONTEXT)) {
     return;
   }
-  DWORD err = GetLastError();
+  err = GetLastError();
   LWIP_PLATFORM_DIAG(("CryptAcquireContext with CRYPT_VERIFYCONTEXT failed with error %d\n", (int)err));
 
   if (!CryptAcquireContext(&hcrypt, NULL, NULL, PROV_RSA_FULL, 0)) {

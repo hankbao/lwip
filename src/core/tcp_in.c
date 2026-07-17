@@ -119,6 +119,8 @@ tcp_input(struct pbuf *p, struct netif *inp)
 {
   struct tcp_pcb *pcb, *prev;
   struct tcp_pcb_listen *lpcb;
+  struct tcp_pcb_listen *netif_pcb;
+  struct tcp_pcb *netif_pcb_prev;
 #if SO_REUSE
   struct tcp_pcb *lpcb_prev = NULL;
   struct tcp_pcb_listen *lpcb_any = NULL;
@@ -315,8 +317,8 @@ tcp_input(struct pbuf *p, struct netif *inp)
     /* Finally, if we still did not get a match, we check all PCBs that
        are LISTENing for incoming connections. */
     prev = NULL;
-    struct tcp_pcb_listen *netif_pcb = NULL;
-    struct tcp_pcb *netif_pcb_prev = NULL;
+    netif_pcb = NULL;
+    netif_pcb_prev = NULL;
     for (lpcb = tcp_listen_pcbs.listen_pcbs; lpcb != NULL; lpcb = lpcb->next) {
       /* check if PCB is bound to specific netif */
       if ((lpcb->netif_idx != NETIF_NO_INDEX) &&

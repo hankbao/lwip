@@ -460,7 +460,7 @@ void             tcp_recved  (struct tcp_pcb *pcb, u16_t len);
 err_t            tcp_bind    (struct tcp_pcb *pcb, const ip_addr_t *ipaddr,
                               u16_t port);
 void             tcp_bind_netif(struct tcp_pcb *pcb, const struct netif *netif);
-err_t            tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3]); 
+err_t            tcp_bind_to_netif(struct tcp_pcb *pcb, const char ifname[3]);
 err_t            tcp_connect (struct tcp_pcb *pcb, const ip_addr_t *ipaddr,
                               u16_t port, tcp_connected_fn connected);
 
