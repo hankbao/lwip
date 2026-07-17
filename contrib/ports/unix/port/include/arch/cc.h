@@ -73,7 +73,11 @@ extern unsigned int lwip_port_rand(void);
   handler;}} while(0)
 #endif
 
-#if defined(LWIP_UNIX_ANDROID) && defined(FD_SET)
+/* Pre-unified-headers NDKs exposed the kernel's FD_SET macro without a
+   userspace fd_set type. Under modern bionic (__BIONIC__, from any libc
+   header) FD_SET can only come from sys/select.h, which already typedefs
+   fd_set — redefining it is a compile error. */
+#if defined(LWIP_UNIX_ANDROID) && defined(FD_SET) && !defined(__BIONIC__)
 typedef __kernel_fd_set fd_set;
 #endif
 
