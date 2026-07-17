@@ -55,6 +55,13 @@
 extern "C" {
 #endif
 
+/* Fork feature marker: tcp_in.c invokes LWIP_HOOK_TCP_ENTER_TIME_WAIT(pcb)
+ * (if defined) right after a pcb is registered on tcp_tw_pcbs — the only
+ * state transition that can otherwise happen with no callback at all
+ * (CLOSING -> TIME_WAIT on the ACK of our FIN). Embedders that rely on the
+ * hook can #error when this is missing (stale submodule). */
+#define LWIP_TCP_HAS_ENTER_TIME_WAIT_HOOK 1
+
 /* Functions for interfacing with TCP: */
 
 /* Lower layer interface to TCP: */

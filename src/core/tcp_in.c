@@ -1028,6 +1028,9 @@ tcp_process(struct tcp_pcb *pcb)
           TCP_RMV_ACTIVE(pcb);
           pcb->state = TIME_WAIT;
           TCP_REG(&tcp_tw_pcbs, pcb);
+#ifdef LWIP_HOOK_TCP_ENTER_TIME_WAIT
+          LWIP_HOOK_TCP_ENTER_TIME_WAIT(pcb);
+#endif
         } else {
           tcp_ack_now(pcb);
           pcb->state = CLOSING;
@@ -1046,6 +1049,9 @@ tcp_process(struct tcp_pcb *pcb)
         TCP_RMV_ACTIVE(pcb);
         pcb->state = TIME_WAIT;
         TCP_REG(&tcp_tw_pcbs, pcb);
+#ifdef LWIP_HOOK_TCP_ENTER_TIME_WAIT
+        LWIP_HOOK_TCP_ENTER_TIME_WAIT(pcb);
+#endif
       }
       break;
     case CLOSING:
@@ -1056,6 +1062,9 @@ tcp_process(struct tcp_pcb *pcb)
         TCP_RMV_ACTIVE(pcb);
         pcb->state = TIME_WAIT;
         TCP_REG(&tcp_tw_pcbs, pcb);
+#ifdef LWIP_HOOK_TCP_ENTER_TIME_WAIT
+        LWIP_HOOK_TCP_ENTER_TIME_WAIT(pcb);
+#endif
       }
       break;
     case LAST_ACK:
